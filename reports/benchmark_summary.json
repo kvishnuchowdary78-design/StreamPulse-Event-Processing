@@ -1,0 +1,49 @@
+{
+    "overall": {
+        "total_orders": 1002,
+        "total_revenue": 2576346.0,
+        "average_order_value": 2571.2035928143714,
+        "late_orders": 2
+    },
+    "data_quality": {
+        "rejected_events": 3,
+        "duplicate_events": 1
+    },
+    "customer_summary": [
+        {
+            "customer_id": "C001",
+            "order_count": 210,
+            "total_amount": 556649.0,
+            "average_amount": 2650.71,
+            "late_orders": 2
+        },
+        {
+            "customer_id": "C002",
+            "order_count": 179,
+            "total_amount": 459039.0,
+            "average_amount": 2564.46,
+            "late_orders": 0
+        },
+        {
+            "customer_id": "C003",
+            "order_count": 204,
+            "total_amount": 510431.0,
+            "average_amount": 2502.11,
+            "late_orders": 0
+        },
+        {
+            "customer_id": "C004",
+            "order_count": 208,
+            "total_amount": 556532.0,
+            "average_amount": 2675.63,
+            "late_orders": 0
+        },
+        {
+            "customer_id": "C005",
+            "order_count": 201,
+            "total_amount": 493695.0,
+            "average_amount": 2456.19,
+            "late_orders": 0
+        }
+    ]
+}

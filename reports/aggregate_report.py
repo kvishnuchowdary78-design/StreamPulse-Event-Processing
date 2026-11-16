@@ -1,18 +1,25 @@
-
 import json
 import sqlite3
 from pathlib import Path
 
-DATABASE = Path("data/output/streampulse.db")
-REPORT_FILE = Path("reports/aggregate_summary.json")
+
+DEFAULT_DATABASE = Path("data/output/streampulse.db")
+DEFAULT_REPORT = Path("reports/aggregate_summary.json")
 
 
-def generate_report():
-    connection = sqlite3.connect(DATABASE)
+def generate_report(database_file=None, report_file=None):
+    database_file = Path(database_file or DEFAULT_DATABASE)
+    report_file = Path(report_file or DEFAULT_REPORT)
+
+    if not database_file.exists():
+        raise FileNotFoundError(
+            f"Database not found: {database_file}"
+        )
+
+    connection = sqlite3.connect(database_file)
     connection.row_factory = sqlite3.Row
 
     try:
-        # Overall processing aggregates
         overall = connection.execute("""
             SELECT
                 COUNT(*) AS total_orders,
@@ -22,7 +29,6 @@ def generate_report():
             FROM processed_events
         """).fetchone()
 
-        # Customer-level aggregates
         customer_rows = connection.execute("""
             SELECT
                 customer_id,
@@ -35,7 +41,6 @@ def generate_report():
             ORDER BY customer_id
         """).fetchall()
 
-        # Processing quality counts
         rejected = connection.execute(
             "SELECT COUNT(*) FROM rejected_events"
         ).fetchone()[0]
@@ -55,9 +60,9 @@ def generate_report():
             ]
         }
 
-        REPORT_FILE.parent.mkdir(parents=True, exist_ok=True)
+        report_file.parent.mkdir(parents=True, exist_ok=True)
 
-        with open(REPORT_FILE, "w", encoding="utf-8") as file:
+        with report_file.open("w", encoding="utf-8") as file:
             json.dump(report, file, indent=4)
 
         print("\n========== AGGREGATE REPORT ==========")
@@ -80,7 +85,7 @@ def generate_report():
                 "| Late:", row["late_orders"]
             )
 
-        print("\nReport saved to:", REPORT_FILE)
+        print("\nReport saved to:", report_file)
 
     finally:
         connection.close()

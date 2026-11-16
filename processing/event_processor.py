@@ -1,6 +1,7 @@
 
 import json
-from datetime import datetime
+import math
+from datetime import datetime, timezone
 
 
 VALID_CUSTOMERS = {
@@ -8,6 +9,38 @@ VALID_CUSTOMERS = {
 }
 
 VALID_EVENT_TYPES = {"ORDER_PLACED"}
+
+
+def parse_timestamp(value):
+    """Parse an ISO timestamp and normalize it to UTC."""
+
+    if not isinstance(value, str) or "T" not in value:
+        raise ValueError("Timestamp must contain a date and time")
+
+    normalized = value.strip()
+
+    if normalized.endswith("Z"):
+        normalized = normalized[:-1] + "+00:00"
+
+    parsed = datetime.fromisoformat(normalized)
+
+    # Treat timestamps without timezone information as UTC.
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+
+    return parsed.astimezone(timezone.utc)
+
+
+def normalize_datetime(value):
+    """Make an existing datetime safe for UTC comparisons."""
+
+    if value is None:
+        return None
+
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=timezone.utc)
+
+    return value.astimezone(timezone.utc)
 
 
 def validate_event(event):
@@ -33,24 +66,38 @@ def validate_event(event):
     if not isinstance(event["order_id"], str) or not event["order_id"].strip():
         return False, "Invalid order_id"
 
-    if event["customer_id"] not in VALID_CUSTOMERS:
+    # Check the type before set membership to avoid unhashable-value crashes.
+    if (
+        not isinstance(event["customer_id"], str)
+        or event["customer_id"] not in VALID_CUSTOMERS
+    ):
         return False, "Invalid customer reference"
 
-    if event["event_type"] not in VALID_EVENT_TYPES:
+    if (
+        not isinstance(event["event_type"], str)
+        or event["event_type"] not in VALID_EVENT_TYPES
+    ):
         return False, "Invalid event_type"
 
+    amount = event["amount"]
+
     if (
-        isinstance(event["amount"], bool)
-        or not isinstance(event["amount"], (int, float))
-        or event["amount"] <= 0
+        isinstance(amount, bool)
+        or not isinstance(amount, (int, float))
+        or not math.isfinite(amount)
+        or amount <= 0
     ):
-        return False, "Amount must be a positive number"
+        return False, "Amount must be a finite positive number"
 
     try:
-        event_time = datetime.fromisoformat(event["event_time"])
-        datetime.fromisoformat(event["arrival_time"])
-    except (ValueError, TypeError):
+        event_time = parse_timestamp(event["event_time"])
+        arrival_time = parse_timestamp(event["arrival_time"])
+    except (ValueError, TypeError, OverflowError):
         return False, "Invalid timestamp"
+
+    # Store normalized timestamps so database state remains consistent.
+    event["event_time"] = event_time.isoformat()
+    event["arrival_time"] = arrival_time.isoformat()
 
     return True, event_time
 
@@ -62,15 +109,17 @@ def process_batch(batch, seen_event_ids, max_event_time):
     rejected = []
     duplicates = []
 
+    max_event_time = normalize_datetime(max_event_time)
+
     for record in batch:
 
         offset = record["offset"]
         raw_data = record["raw"]
 
-        # Step 1: Parse JSON
+        # Step 1: Parse JSON.
         try:
             event = json.loads(raw_data)
-        except json.JSONDecodeError:
+        except (json.JSONDecodeError, TypeError):
             rejected.append({
                 "offset": offset,
                 "raw": raw_data,
@@ -78,7 +127,6 @@ def process_batch(batch, seen_event_ids, max_event_time):
             })
             continue
 
-        # Ensure JSON contains an object
         if not isinstance(event, dict):
             rejected.append({
                 "offset": offset,
@@ -87,7 +135,7 @@ def process_batch(batch, seen_event_ids, max_event_time):
             })
             continue
 
-        # Step 2: Validate business rules
+        # Step 2: Validate business rules.
         is_valid, result = validate_event(event)
 
         if not is_valid:
@@ -100,7 +148,7 @@ def process_batch(batch, seen_event_ids, max_event_time):
 
         event_time = result
 
-        # Step 3: Detect duplicate event IDs
+        # Step 3: Detect duplicate event IDs.
         event_id = event["event_id"]
 
         if event_id in seen_event_ids:
@@ -111,7 +159,7 @@ def process_batch(batch, seen_event_ids, max_event_time):
             })
             continue
 
-        # Step 4: Identify late/out-of-order events
+        # Step 4: Identify late/out-of-order events.
         is_late = (
             max_event_time is not None
             and event_time < max_event_time
@@ -131,4 +179,3 @@ def process_batch(batch, seen_event_ids, max_event_time):
 
 if __name__ == "__main__":
     print("StreamPulse Event Processor loaded successfully.")
-    print("Validation, deduplication and late-event detection are ready.")

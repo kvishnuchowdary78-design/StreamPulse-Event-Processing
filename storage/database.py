@@ -1,21 +1,22 @@
-
 import sqlite3
-import json
 from datetime import datetime
 from pathlib import Path
 
-DATABASE_FILE = Path("data/output/streampulse.db")
+
+DEFAULT_DATABASE = Path("data/output/streampulse.db")
 
 
-def get_connection():
-    DATABASE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    connection = sqlite3.connect(DATABASE_FILE)
+def get_connection(database_file=None):
+    database_file = Path(database_file or DEFAULT_DATABASE)
+    database_file.parent.mkdir(parents=True, exist_ok=True)
+
+    connection = sqlite3.connect(database_file)
     connection.execute("PRAGMA foreign_keys = ON")
     return connection
 
 
-def initialize_database():
-    connection = get_connection()
+def initialize_database(database_file=None):
+    connection = get_connection(database_file)
 
     with connection:
         connection.execute("""
@@ -74,7 +75,6 @@ def get_last_processed_offset(connection, source_file):
     return result[0] if result else 0
 
 
-
 def get_processing_state(connection):
     rows = connection.execute(
         "SELECT event_id FROM processed_events"
@@ -103,7 +103,7 @@ def save_batch(
     duplicates,
     last_processed_offset
 ):
-    # All batch writes and checkpoint updates are one transaction.
+    # Batch outcomes and checkpoint are committed atomically.
     with connection:
 
         for event in accepted:

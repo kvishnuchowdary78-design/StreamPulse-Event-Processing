@@ -1,4 +1,4 @@
-
+import argparse
 from pathlib import Path
 
 from config import logger
@@ -14,16 +14,33 @@ from storage.database import (
 from reports.aggregate_report import generate_report
 
 
-INPUT_FILE = Path("data/input/events.jsonl")
-SOURCE_FILE = str(INPUT_FILE)
+DEFAULT_INPUT_FILE = Path("data/input/events.jsonl")
+DEFAULT_BATCH_SIZE = 5
+DEFAULT_DATABASE = Path("data/output/streampulse.db")
+DEFAULT_REPORT = Path("reports/aggregate_summary.json")
 
 
-def run_pipeline():
-    initialize_database()
+def run_pipeline(
+    input_file=DEFAULT_INPUT_FILE,
+    batch_size=DEFAULT_BATCH_SIZE,
+    database_file=DEFAULT_DATABASE,
+    report_file=DEFAULT_REPORT
+):
+    input_file = Path(input_file)
+    database_file = Path(database_file)
+    report_file = Path(report_file)
+    source_file = str(input_file)
 
+    if batch_size < 1:
+        raise ValueError("Batch size must be at least 1")
+
+    if not input_file.exists():
+        raise FileNotFoundError(f"Input file not found: {input_file}")
+
+    initialize_database(database_file)
     logger.info("StreamPulse pipeline started")
 
-    connection = get_connection()
+    connection = get_connection(database_file)
 
     total_accepted = 0
     total_rejected = 0
@@ -32,35 +49,31 @@ def run_pipeline():
     batch_count = 0
 
     try:
-        # Restore the last successfully processed offset
         last_offset = get_last_processed_offset(
             connection,
-            SOURCE_FILE
+            source_file
         )
 
-        # Restore previously processed event IDs and event-time state
         seen_event_ids, max_event_time = get_processing_state(
             connection
         )
 
         print("\n========== STREAMPULSE ==========")
+        print("Input file:", input_file)
+        print("Database:", database_file)
+        print("Report:", report_file)
+        print("Batch size:", batch_size)
         print("Starting offset:", last_offset)
 
-        logger.info(
-            "Starting from source offset %s",
-            last_offset
-        )
+        logger.info("Starting from source offset %s", last_offset)
 
-        # Read input records in batches of five
         batches = read_batches(
-            INPUT_FILE,
-            batch_size=5,
+            input_file,
+            batch_size=batch_size,
             start_offset=last_offset
         )
 
         for batch_number, batch in enumerate(batches, start=1):
-
-            # Validate, deduplicate and detect late events
             accepted, rejected, duplicates, next_max_time = process_batch(
                 batch,
                 seen_event_ids,
@@ -68,16 +81,14 @@ def run_pipeline():
             )
 
             late_count = sum(
-                1 for event in accepted
-                if event["is_late"]
+                1 for event in accepted if event["is_late"]
             )
 
             batch_last_offset = batch[-1]["offset"]
 
-            # Store events and checkpoint atomically
             save_batch(
                 connection,
-                SOURCE_FILE,
+                source_file,
                 accepted,
                 rejected,
                 duplicates,
@@ -86,14 +97,12 @@ def run_pipeline():
 
             max_event_time = next_max_time
 
-            # Update processing metrics
             batch_count += 1
             total_accepted += len(accepted)
             total_rejected += len(rejected)
             total_duplicates += len(duplicates)
             total_late += late_count
 
-            # Display batch results
             print(f"\nBatch {batch_number}")
             print("Last offset:", batch_last_offset)
             print("Accepted:", len(accepted))
@@ -102,7 +111,6 @@ def run_pipeline():
             print("Late events:", late_count)
             print("Checkpoint saved:", batch_last_offset)
 
-            # Record batch metrics in the log
             logger.info(
                 "Batch completed | offset=%s | accepted=%s | rejected=%s | duplicates=%s | late=%s",
                 batch_last_offset,
@@ -112,7 +120,6 @@ def run_pipeline():
                 late_count
             )
 
-        # Display pipeline summary
         print("\n========== PIPELINE SUMMARY ==========")
         print("Batches processed:", batch_count)
         print("Accepted:", total_accepted)
@@ -132,9 +139,8 @@ def run_pipeline():
             total_late
         )
 
-        # Generate aggregate report from the database
         print("\n========== REPORT GENERATION ==========")
-        generate_report()
+        generate_report(database_file, report_file)
 
         logger.info("Aggregate report generated successfully")
 
@@ -147,5 +153,51 @@ def run_pipeline():
         logger.info("Database connection closed")
 
 
+def main():
+    parser = argparse.ArgumentParser(
+        description="StreamPulse configurable event processing pipeline."
+    )
+
+    parser.add_argument(
+        "--input",
+        type=Path,
+        default=DEFAULT_INPUT_FILE,
+        help="Input JSONL file."
+    )
+
+    parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=DEFAULT_BATCH_SIZE,
+        help="Number of records per batch."
+    )
+
+    parser.add_argument(
+        "--database",
+        type=Path,
+        default=DEFAULT_DATABASE,
+        help="SQLite database file."
+    )
+
+    parser.add_argument(
+        "--report",
+        type=Path,
+        default=DEFAULT_REPORT,
+        help="Aggregate report output file."
+    )
+
+    args = parser.parse_args()
+
+    if args.batch_size < 1:
+        parser.error("--batch-size must be at least 1")
+
+    run_pipeline(
+        input_file=args.input,
+        batch_size=args.batch_size,
+        database_file=args.database,
+        report_file=args.report
+    )
+
+
 if __name__ == "__main__":
-    run_pipeline()
+    main()

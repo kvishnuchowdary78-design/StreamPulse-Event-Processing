@@ -1,0 +1,24 @@
+{
+    "input_file": "data\\input\\events.jsonl",
+    "database_file": "data\\output\\streampulse.db",
+    "source_records": 26,
+    "checkpoint": 26,
+    "accepted": 22,
+    "rejected": 3,
+    "duplicates": 1,
+    "total_outcomes": 26,
+    "accepted_revenue": 50823.0,
+    "late_events": 2,
+    "pending_records": 0,
+    "checks": {
+        "Checkpoint does not exceed the number of source records": true,
+        "Every checkpointed source record has one recorded outcome": true,
+        "Accepted + rejected + duplicates equals checkpoint": true,
+        "No source offset appears in more than one outcome": true,
+        "Processed source offsets are continuous from 1 to checkpoint": true,
+        "Aggregate report matches database totals": true
+    },
+    "checks_passed": 6,
+    "checks_total": 6,
+    "status": "PASS"
+}

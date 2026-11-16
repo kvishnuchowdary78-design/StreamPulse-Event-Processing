@@ -1,0 +1,24 @@
+{
+    "input_file": "data\\input\\benchmark_events.jsonl",
+    "database_file": "data\\output\\benchmark.db",
+    "source_records": 1006,
+    "checkpoint": 1006,
+    "accepted": 1002,
+    "rejected": 3,
+    "duplicates": 1,
+    "total_outcomes": 1006,
+    "accepted_revenue": 2576346.0,
+    "late_events": 2,
+    "pending_records": 0,
+    "checks": {
+        "Checkpoint does not exceed the number of source records": true,
+        "Every checkpointed source record has one recorded outcome": true,
+        "Accepted + rejected + duplicates equals checkpoint": true,
+        "No source offset appears in more than one outcome": true,
+        "Processed source offsets are continuous from 1 to checkpoint": true,
+        "Aggregate report matches database totals": true
+    },
+    "checks_passed": 6,
+    "checks_total": 6,
+    "status": "PASS"
+}
