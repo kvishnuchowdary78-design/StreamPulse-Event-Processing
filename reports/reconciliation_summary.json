@@ -1,6 +1,6 @@
 {
     "input_file": "data\\input\\events.jsonl",
-    "database_file": "data\\output\\streampulse.db",
+    "database_file": "data\\output\\events_fresh.db",
     "source_records": 26,
     "checkpoint": 26,
     "accepted": 22,

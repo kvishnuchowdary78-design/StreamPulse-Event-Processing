@@ -1,4 +1,4 @@
-﻿# StreamPulse â€” Micro-Batch Event Processing and Monitoring System
+# StreamPulse - Micro-Batch Event Processing and Monitoring System
 
 ## 1. Project Overview
 
@@ -129,7 +129,8 @@ python main.py
 Run with custom parameters:
 
 ```bash
-python main.py --input data/input/events.jsonl --batch-size 5 --database data/output/streampulse.db --report reports/aggregate_summary.json
+python main.py --input data/input/events.jsonl --batch-size 5 --database data/output/events_fresh.db --report reports/aggregate_summary.json
+python reports/reconciliation.py --input data/input/events.jsonl --database data/output/events_fresh.db --report reports/aggregate_summary.json --output reports/reconciliation_summary.json
 ```
 
 ### Supported command-line arguments
@@ -195,6 +196,7 @@ The reconciliation utility independently checks processing consistency.
 Run benchmark reconciliation:
 
 ```bash
+python main.py --input data/input/benchmark_events.jsonl --batch-size 500 --database data/output/benchmark.db --report reports/benchmark_summary.json
 python reports/reconciliation.py --input data/input/benchmark_events.jsonl --database data/output/benchmark.db --report reports/benchmark_summary.json --output reports/benchmark_reconciliation.json
 ```
 
@@ -252,6 +254,16 @@ StreamPulse includes several mechanisms to improve processing reliability:
 - Independent reconciliation of processing outcomes.
 
 A report-generation failure was also tested. The pipeline correctly recorded the run as `FAILED` with the associated failure reason.
+### Retry, Restart, Backfill, and Operational Assumptions
+
+- **Rerun and idempotency:** When a pipeline is rerun against the same database and source file, processing resumes from the last committed source offset. Previously committed records are not inserted again.
+- **Failure recovery:** Batch outcomes and checkpoint updates are committed transactionally. If a batch transaction fails, its changes are rolled back. The pipeline run is marked `FAILED` when an exception is handled. A subsequent manual rerun resumes from the last committed checkpoint.
+- **Empty input:** An empty input file completes successfully with zero processing batches.
+- **Schema changes:** Missing required fields are rejected with a validation reason. Additional fields are ignored by the current processor.
+- **Timestamp assumptions:** Timestamps without an explicit timezone are interpreted as UTC. Timestamps with timezone information are normalized to UTC.
+- **Backfill limitation:** The current checkpoint and source-offset design supports one source file per database. Processing a different source file with the same database can cause source-offset uniqueness conflicts. Use a separate database for an independent backfill.
+- **Abrupt termination:** If the process is forcibly terminated before it can update its run status, the run may remain marked `RUNNING`. Manual inspection is required; automatic stale-run recovery is not currently implemented.
+- **Automatic retries:** The pipeline does not currently implement automatic retry scheduling. Recovery is performed by manually rerunning the pipeline.
 
 ## 12. Design Considerations
 
