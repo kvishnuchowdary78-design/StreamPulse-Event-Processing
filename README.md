@@ -1,4 +1,4 @@
-# StreamPulse — Micro-Batch Event Processing and Monitoring System
+# StreamPulse â€” Micro-Batch Event Processing and Monitoring System
 
 ## 1. Project Overview
 
@@ -68,36 +68,36 @@ The pipeline follows four main stages:
 
 ```text
 StreamPulse/
-¦
+|
 +-- data/
-¦   +-- input/
-¦   ¦   +-- events.jsonl
-¦   ¦   +-- benchmark_events.jsonl
-¦   ¦
-¦   +-- output/
-¦
+|   +-- input/
+|   |   +-- events.jsonl
+|   |   +-- benchmark_events.jsonl
+|   |
+|   +-- output/
+|
 +-- ingestion/
-¦   +-- event_generator.py
-¦   +-- event_ingestion.py
-¦
+|   +-- event_generator.py
+|   +-- event_ingestion.py
+|
 +-- processing/
-¦   +-- event_processor.py
-¦
+|   +-- event_processor.py
+|
 +-- storage/
-¦   +-- database.py
-¦
+|   +-- database.py
+|
 +-- reports/
-¦   +-- aggregate_report.py
-¦   +-- aggregate_summary.json
-¦   +-- reconciliation.py
-¦   +-- reconciliation_summary.json
-¦   +-- benchmark_summary.json
-¦   +-- benchmark_reconciliation.json
-¦
+|   +-- aggregate_report.py
+|   +-- aggregate_summary.json
+|   +-- reconciliation.py
+|   +-- reconciliation_summary.json
+|   +-- benchmark_summary.json
+|   +-- benchmark_reconciliation.json
+|
 +-- tests/
-¦   +-- test_pipeline.py
-¦   +-- test_storage.py
-¦
+|   +-- test_pipeline.py
+|   +-- test_storage.py
+|
 +-- main.py
 +-- README.md
 +-- DESIGN_NOTES.md

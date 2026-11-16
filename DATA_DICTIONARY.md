@@ -13,7 +13,7 @@ Format: JSON Lines (one JSON event per line).
 | order_id | String | Order identifier | Required, non-empty |
 | customer_id | String | Customer reference | Must match seeded customer data |
 | event_type | String | Type of event | Must be ORDER_PLACED |
-| amount | Number | Order amount | Must be positive |
+| amount | Number | Order amount | Must be a finite positive number |
 | event_time | ISO 8601 String | Time when the event occurred | Must be a valid timestamp |
 | arrival_time | ISO 8601 String | Time when the event reached the pipeline | Must be a valid timestamp |
 
@@ -57,6 +57,8 @@ Stores valid, accepted events.
 | arrival_time | TEXT | Event arrival timestamp |
 | is_late | INTEGER | 1 if late, otherwise 0 |
 | source_offset | INTEGER | Unique source offset |
+| source_file | TEXT | Input file associated with this outcome |
+| run_id | TEXT | Pipeline run that produced this outcome |
 
 ### Table: rejected_events
 
@@ -66,6 +68,8 @@ Stores invalid records.
 |---|---|---|
 | id | INTEGER | Auto-increment primary key |
 | source_offset | INTEGER | Unique source offset |
+| source_file | TEXT | Input file associated with this outcome |
+| run_id | TEXT | Pipeline run that produced this outcome |
 | raw_data | TEXT | Original input record |
 | reason | TEXT | Validation or parsing failure reason |
 
@@ -77,8 +81,23 @@ Stores duplicate records.
 |---|---|---|
 | id | INTEGER | Auto-increment primary key |
 | source_offset | INTEGER | Unique source offset |
+| source_file | TEXT | Input file associated with this outcome |
+| run_id | TEXT | Pipeline run that produced this outcome |
 | event_id | TEXT | Duplicate event identifier |
 | reason | TEXT | Duplicate detection reason |
+
+### Table: pipeline_runs
+
+Stores pipeline execution history.
+
+| Column | Data Type | Description |
+|---|---|---|
+| run_id | TEXT | UUID primary key for the execution |
+| source_file | TEXT | Input file processed by the run |
+| start_time | TEXT | UTC execution start timestamp |
+| end_time | TEXT | UTC execution end timestamp; nullable while running |
+| status | TEXT | RUNNING, SUCCESS, or FAILED |
+| failure_reason | TEXT | Failure details; nullable for successful runs |
 
 ### Table: checkpoints
 

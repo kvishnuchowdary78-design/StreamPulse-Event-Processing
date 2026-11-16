@@ -18,7 +18,7 @@ Module: `ingestion/event_ingestion.py`
 Responsibilities:
 - Read JSONL input records.
 - Assign sequential source offsets.
-- Divide input into batches of five.
+- Divide input into configurable batches (default batch size: five).
 - Resume reading from the last saved offset.
 
 The event generator is available in `ingestion/event_generator.py`.
@@ -57,7 +57,7 @@ Responsibilities:
 1. Initialize the SQLite database.
 2. Read the last processed source offset.
 3. Restore previously processed event IDs and maximum event time.
-4. Read the next batch of five records.
+4. Read the next configured batch of records.
 5. Parse and validate each record.
 6. Separate accepted, rejected and duplicate records.
 7. Identify out-of-order events.
@@ -145,6 +145,10 @@ Unique constraint: `source_offset`
 ### checkpoints
 
 Stores the latest successfully committed source offset for each input file.
+
+### pipeline_runs
+
+Stores one execution record per pipeline run, including the UUID run ID, source file, UTC start and end timestamps, status, and failure reason. Runs begin as RUNNING and finish as SUCCESS or FAILED.
 
 ## 9. Monitoring
 
