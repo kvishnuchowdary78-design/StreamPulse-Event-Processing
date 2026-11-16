@@ -1,16 +1,22 @@
+
 import argparse
 from pathlib import Path
 
 from config import logger
+
 from ingestion.event_ingestion import read_batches
 from processing.event_processor import process_batch
+
 from storage.database import (
     get_connection,
     initialize_database,
     get_last_processed_offset,
     get_processing_state,
-    save_batch
+    save_batch,
+    create_pipeline_run,
+    finish_pipeline_run
 )
+
 from reports.aggregate_report import generate_report
 
 
@@ -29,18 +35,24 @@ def run_pipeline(
     input_file = Path(input_file)
     database_file = Path(database_file)
     report_file = Path(report_file)
+
     source_file = str(input_file)
 
     if batch_size < 1:
         raise ValueError("Batch size must be at least 1")
 
     if not input_file.exists():
-        raise FileNotFoundError(f"Input file not found: {input_file}")
+        raise FileNotFoundError(
+            f"Input file not found: {input_file}"
+        )
 
     initialize_database(database_file)
+
     logger.info("StreamPulse pipeline started")
 
     connection = get_connection(database_file)
+
+    run_id = None
 
     total_accepted = 0
     total_rejected = 0
@@ -49,23 +61,41 @@ def run_pipeline(
     batch_count = 0
 
     try:
+        # Create a persistent execution record.
+        run_id = create_pipeline_run(
+            connection,
+            source_file
+        )
+
+        print("\n========== STREAMPULSE ==========")
+        print("Run ID:", run_id)
+        print("Input file:", input_file)
+        print("Database:", database_file)
+        print("Report:", report_file)
+        print("Batch size:", batch_size)
+
+        logger.info(
+            "Pipeline run created | run_id=%s",
+            run_id
+        )
+
+        # Retrieve existing checkpoint.
         last_offset = get_last_processed_offset(
             connection,
             source_file
         )
 
+        # Retrieve existing processing state.
         seen_event_ids, max_event_time = get_processing_state(
             connection
         )
 
-        print("\n========== STREAMPULSE ==========")
-        print("Input file:", input_file)
-        print("Database:", database_file)
-        print("Report:", report_file)
-        print("Batch size:", batch_size)
         print("Starting offset:", last_offset)
 
-        logger.info("Starting from source offset %s", last_offset)
+        logger.info(
+            "Starting from source offset %s",
+            last_offset
+        )
 
         batches = read_batches(
             input_file,
@@ -73,26 +103,36 @@ def run_pipeline(
             start_offset=last_offset
         )
 
-        for batch_number, batch in enumerate(batches, start=1):
-            accepted, rejected, duplicates, next_max_time = process_batch(
-                batch,
-                seen_event_ids,
-                max_event_time
+        for batch_number, batch in enumerate(
+            batches,
+            start=1
+        ):
+
+            accepted, rejected, duplicates, next_max_time = (
+                process_batch(
+                    batch,
+                    seen_event_ids,
+                    max_event_time
+                )
             )
 
             late_count = sum(
-                1 for event in accepted if event["is_late"]
+                1
+                for event in accepted
+                if event["is_late"]
             )
 
             batch_last_offset = batch[-1]["offset"]
 
+            # Persist batch outcomes and checkpoint atomically.
             save_batch(
                 connection,
                 source_file,
                 accepted,
                 rejected,
                 duplicates,
-                batch_last_offset
+                batch_last_offset,
+                run_id=run_id
             )
 
             max_event_time = next_max_time
@@ -112,7 +152,8 @@ def run_pipeline(
             print("Checkpoint saved:", batch_last_offset)
 
             logger.info(
-                "Batch completed | offset=%s | accepted=%s | rejected=%s | duplicates=%s | late=%s",
+                "Batch completed | offset=%s | accepted=%s "
+                "| rejected=%s | duplicates=%s | late=%s",
                 batch_last_offset,
                 len(accepted),
                 len(rejected),
@@ -121,6 +162,7 @@ def run_pipeline(
             )
 
         print("\n========== PIPELINE SUMMARY ==========")
+        print("Run ID:", run_id)
         print("Batches processed:", batch_count)
         print("Accepted:", total_accepted)
         print("Rejected:", total_rejected)
@@ -131,7 +173,8 @@ def run_pipeline(
             print("No new records. Source is already up to date.")
 
         logger.info(
-            "Pipeline completed | batches=%s | accepted=%s | rejected=%s | duplicates=%s | late=%s",
+            "Pipeline completed | batches=%s | accepted=%s "
+            "| rejected=%s | duplicates=%s | late=%s",
             batch_count,
             total_accepted,
             total_rejected,
@@ -139,23 +182,72 @@ def run_pipeline(
             total_late
         )
 
+        # Generate the aggregate report.
         print("\n========== REPORT GENERATION ==========")
-        generate_report(database_file, report_file)
 
-        logger.info("Aggregate report generated successfully")
+        generate_report(
+            database_file,
+            report_file
+        )
 
-    except Exception:
+        logger.info(
+            "Aggregate report generated successfully"
+        )
+
+        # Mark the run successful only after report generation.
+        finish_pipeline_run(
+            connection,
+            run_id,
+            "SUCCESS"
+        )
+
+        print("\nPipeline run status: SUCCESS")
+
+        logger.info(
+            "Pipeline run completed successfully | run_id=%s",
+            run_id
+        )
+
+    except Exception as exc:
+
         logger.exception("StreamPulse pipeline failed")
+
+        # Record the failure without hiding the original exception.
+        if run_id is not None:
+            try:
+                finish_pipeline_run(
+                    connection,
+                    run_id,
+                    "FAILED",
+                    failure_reason=str(exc)
+                )
+
+                logger.info(
+                    "Pipeline run marked FAILED | run_id=%s",
+                    run_id
+                )
+
+            except Exception:
+                logger.exception(
+                    "Could not update pipeline run failure status"
+                )
+
         raise
 
     finally:
         connection.close()
-        logger.info("Database connection closed")
+
+        logger.info(
+            "Database connection closed"
+        )
 
 
 def main():
+
     parser = argparse.ArgumentParser(
-        description="StreamPulse configurable event processing pipeline."
+        description=(
+            "StreamPulse configurable event processing pipeline."
+        )
     )
 
     parser.add_argument(
@@ -189,7 +281,9 @@ def main():
     args = parser.parse_args()
 
     if args.batch_size < 1:
-        parser.error("--batch-size must be at least 1")
+        parser.error(
+            "--batch-size must be at least 1"
+        )
 
     run_pipeline(
         input_file=args.input,
