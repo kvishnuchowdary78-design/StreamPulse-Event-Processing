@@ -1,0 +1,2 @@
+# StreamPulse uses Python standard-library modules only.
+# No third-party packages are required.
