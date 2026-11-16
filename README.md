@@ -1,4 +1,4 @@
-# StreamPulse — Micro-Batch Event Processing and Monitoring System
+﻿# StreamPulse â€” Micro-Batch Event Processing and Monitoring System
 
 ## 1. Project Overview
 
@@ -223,7 +223,7 @@ Check Python syntax:
 python -m compileall -q .
 ```
 
-The current test suite contains 16 passing tests covering:
+The current test suite contains 21 passing tests covering:
 
 - Valid and invalid event processing.
 - Duplicate detection.
@@ -237,7 +237,7 @@ The current test suite contains 16 passing tests covering:
 - Pipeline failure tracking.
 - Event-level run metadata.
 
-**Latest verified test result: 16 tests passed.**
+**Latest verified test result: 21 tests passed.**
 
 ## 11. Reliability and Error Handling
 
@@ -286,3 +286,51 @@ StreamPulse demonstrates an end-to-end micro-batch event processing workflow wit
 The implementation has been validated using a benchmark dataset, restart testing, controlled failure testing, and an automated test suite.
 
 The project provides a practical demonstration of foundational data engineering and pipeline reliability concepts.
+
+
+## 16. Performance Measurement
+
+A dataset containing 100,000 generated events was used to compare two batch sizes. The generator produced 100,006 source records, including additional edge-case and malformed records.
+
+Both runs used separate SQLite databases on the same Windows machine.
+
+### Benchmark results
+
+| Metric | Batch size 5 | Batch size 1,000 |
+|---|---:|---:|
+| Source records | 100,006 | 100,006 |
+| Accepted | 100,002 | 100,002 |
+| Rejected | 3 | 3 |
+| Duplicates | 1 | 1 |
+| Execution time | 74.47 seconds | 3.59 seconds |
+| Reconciliation | PASS (6/6) | PASS (6/6) |
+
+Batch size 1,000 was approximately **20.75 times faster**, reducing execution time by approximately **95.18%** in this measurement.
+
+### Optimization
+
+Larger batches reduce the number of database transactions required to process the same number of records. This reduces transaction overhead and improves throughput.
+
+These timings are measurements from one machine and one benchmark run. Actual performance may vary depending on hardware, storage, and workload.
+
+### Reproduce the benchmark
+
+Generate the dataset:
+
+```bash
+python -m ingestion.event_generator --count 100000 --output data/input/large_events.jsonl
+```
+
+Run with batch size 5:
+
+```bash
+python main.py --input data/input/large_events.jsonl --batch-size 5 --database data/output/performance_5.db --report reports/performance_5.json
+```
+
+Run with batch size 1,000:
+
+```bash
+python main.py --input data/input/large_events.jsonl --batch-size 1000 --database data/output/performance_1000.db --report reports/performance_1000.json
+```
+
+Reconcile both runs using `reports/reconciliation.py` to verify that their outcomes and aggregate totals match.

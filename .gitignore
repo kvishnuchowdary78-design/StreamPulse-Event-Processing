@@ -6,3 +6,10 @@ data/output/*.db
 checkpoints/
 reports/run_tracking_test_summary.json
 reports/__pycache__/
+
+# Generated performance dataset
+/data/input/large_events.jsonl
+
+# Generated benchmark reports
+/reports/benchmark_fresh_*.json
+/reports/performance_*.json

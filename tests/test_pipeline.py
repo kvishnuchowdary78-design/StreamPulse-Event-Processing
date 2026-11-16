@@ -33,7 +33,6 @@ class TestStreamPulseProcessor(unittest.TestCase):
 
     def test_valid_event(self):
         event = make_event("EVT001", "2026-11-16T10:00:00")
-
         accepted, rejected, duplicates, max_time = self.process_event(event)
 
         self.assertEqual(len(accepted), 1)
@@ -57,7 +56,6 @@ class TestStreamPulseProcessor(unittest.TestCase):
 
     def test_invalid_amount(self):
         event = make_event("EVT002", "2026-11-16T10:00:00", -100)
-
         accepted, rejected, duplicates, max_time = self.process_event(event)
 
         self.assertEqual(len(accepted), 0)
@@ -110,7 +108,6 @@ class TestStreamPulseProcessor(unittest.TestCase):
 
     def test_nan_amount_is_rejected(self):
         event = make_event("EVT_NAN", "2026-11-16T10:00:00", float("nan"))
-
         accepted, rejected, duplicates, max_time = self.process_event(event)
 
         self.assertEqual(len(accepted), 0)
@@ -118,7 +115,6 @@ class TestStreamPulseProcessor(unittest.TestCase):
 
     def test_infinite_amount_is_rejected(self):
         event = make_event("EVT_INF", "2026-11-16T10:00:00", float("inf"))
-
         accepted, rejected, duplicates, max_time = self.process_event(event)
 
         self.assertEqual(len(accepted), 0)
@@ -126,7 +122,6 @@ class TestStreamPulseProcessor(unittest.TestCase):
 
     def test_date_only_timestamp_is_rejected(self):
         event = make_event("EVT_DATE", "2026-11-16")
-
         accepted, rejected, duplicates, max_time = self.process_event(event)
 
         self.assertEqual(len(accepted), 0)
@@ -152,7 +147,6 @@ class TestStreamPulseProcessor(unittest.TestCase):
 
     def test_timezone_is_normalized_to_utc(self):
         event = make_event("EVT_UTC", "2026-11-16T10:00:00+05:30")
-
         accepted, rejected, duplicates, max_time = self.process_event(event)
 
         self.assertEqual(len(accepted), 1)
@@ -160,6 +154,32 @@ class TestStreamPulseProcessor(unittest.TestCase):
         self.assertEqual(
             accepted[0]["event_time"],
             "2026-11-16T04:30:00+00:00"
+        )
+
+    def test_missing_required_field_is_rejected(self):
+        event = make_event("EVT_MISSING", "2026-11-16T10:00:00")
+        event.pop("amount")
+
+        accepted, rejected, duplicates, max_time = self.process_event(event)
+
+        self.assertEqual(len(accepted), 0)
+        self.assertEqual(len(rejected), 1)
+        self.assertEqual(
+            rejected[0]["reason"],
+            "Missing required field: amount"
+        )
+
+    def test_unknown_customer_is_rejected(self):
+        event = make_event("EVT_UNKNOWN", "2026-11-16T10:00:00")
+        event["customer_id"] = "C999"
+
+        accepted, rejected, duplicates, max_time = self.process_event(event)
+
+        self.assertEqual(len(accepted), 0)
+        self.assertEqual(len(rejected), 1)
+        self.assertEqual(
+            rejected[0]["reason"],
+            "Invalid customer reference"
         )
 
 
